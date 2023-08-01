@@ -821,6 +821,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                                 &|a, b| a * b,
                                 &|a, scalar| a * scalar,
                                 &Value::Real(F::ZERO),
+                                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
                             ) {
                                 Value::Real(x) if x.is_zero_vartime() => None,
                                 Value::Real(_) => Some(VerifyFailure::ConstraintNotSatisfied {
@@ -895,6 +896,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                 &|a, b| a * b,
                 &|a, scalar| a * scalar,
                 &Value::Real(F::ZERO),
+                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
             )
         };
 
@@ -1254,6 +1256,8 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                                 &|a, b| a * b,
                                 &|a, scalar| a * scalar,
                                 &Value::Real(F::ZERO),
+                                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
+
                             ) {
                                 Value::Real(x) if x.is_zero_vartime() => None,
                                 Value::Real(_) => Some(VerifyFailure::ConstraintNotSatisfied {
@@ -1323,6 +1327,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                 &|a, b| a * b,
                 &|a, scalar| a * scalar,
                 &Value::Real(F::ZERO),
+                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
             )
         };
 

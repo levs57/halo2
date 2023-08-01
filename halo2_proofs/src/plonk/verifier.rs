@@ -308,6 +308,7 @@ where
                                     &|a, b| a + &b,
                                     &|a, b| a * &b,
                                     &|a, scalar| a * &scalar,
+                                    &|f, c, _| f(challenges[c.index()]),
                                 )
                             })
                         }))

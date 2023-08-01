@@ -210,5 +210,6 @@ pub(super) fn expression_to_string<F: Field>(
                 format!("{} * {}", a, util::format_value(s))
             }
         },
+        &|_, c, n| format!("PP {} : C{}({})", n, c.index(), c.phase()),
     )
 }

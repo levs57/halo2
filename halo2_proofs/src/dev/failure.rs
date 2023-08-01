@@ -84,6 +84,7 @@ impl FailureLocation {
                         a
                     },
                     &|a, _| a,
+                    &|_,_,_|vec![],
                 )
             })
             .collect();
@@ -539,6 +540,7 @@ fn render_lookup<F: Field>(
             &|a, b| format! {"{} + {}", a,b},
             &|a, b| format! {"{} * {}", a,b},
             &|a, b| format! {"{} * {:?}", a, b},
+            &|_, c, n| format!("PP {} : C{}", n, c.index()),
         )
     });
 
@@ -602,6 +604,7 @@ fn render_lookup<F: Field>(
                 a
             },
             &|a, _| a,
+            &|_,_,_| BTreeMap::default(),
         );
 
         // Collect the necessary rendering information:
@@ -705,6 +708,7 @@ fn render_shuffle<F: Field>(
             &|a, b| format! {"{} + {}", a,b},
             &|a, b| format! {"{} * {}", a,b},
             &|a, b| format! {"{} * {:?}", a, b},
+            &|_,c,n| format!("PP {} : C{}", n, c.index()),
         )
     });
 
@@ -767,6 +771,7 @@ fn render_shuffle<F: Field>(
                 a
             },
             &|a, _| a,
+            &|_,_,_| BTreeMap::default(),
         );
 
         // Collect the necessary rendering information:

@@ -155,6 +155,7 @@ pub(super) fn cell_values<'a, F: Field>(
             a
         },
         &|a, _| a,
+        &|_,_,_| BTreeMap::default(),
     );
     cell_values.into_iter().collect()
 }

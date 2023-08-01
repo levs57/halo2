@@ -107,7 +107,7 @@ impl ValueSource {
 
 /// Calculation
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Calculation {
+pub enum Calculation<F: Field> {
     /// This is an addition
     Add(ValueSource, ValueSource),
     /// This is a subtraction
@@ -124,11 +124,14 @@ pub enum Calculation {
     Horner(ValueSource, Vec<ValueSource>, ValueSource),
     /// This is a simple assignment
     Store(ValueSource),
+    /// Application of a generic black-box function
+    Apply(fn(F)->F, ValueSource),
+
 }
 
-impl Calculation {
+impl<F: Field> Calculation<F> {
     /// Get the resulting value of this calculation
-    pub fn evaluate<F: Field, B: Basis>(
+    pub fn evaluate<B: Basis>(
         &self,
         rotations: &[usize],
         constants: &[F],
@@ -175,6 +178,7 @@ impl Calculation {
                 value
             }
             Calculation::Store(v) => get_value(v),
+            Calculation::Apply(f, v) => f(get_value(v)),
         }
     }
 }
@@ -198,7 +202,7 @@ pub struct GraphEvaluator<C: CurveAffine> {
     /// Rotations
     pub rotations: Vec<i32>,
     /// Calculations
-    pub calculations: Vec<CalculationInfo>,
+    pub calculations: Vec<CalculationInfo<C::ScalarExt>>,
     /// Number of intermediates
     pub num_intermediates: usize,
 }
@@ -214,9 +218,9 @@ pub struct EvaluationData<C: CurveAffine> {
 
 /// CaluclationInfo
 #[derive(Clone, Debug)]
-pub struct CalculationInfo {
+pub struct CalculationInfo<F: Field> {
     /// Calculation
-    pub calculation: Calculation,
+    pub calculation: Calculation<F>,
     /// Target
     pub target: usize,
 }
@@ -666,7 +670,7 @@ impl<C: CurveAffine> GraphEvaluator<C> {
     /// Currently does the simplest thing possible: just stores the
     /// resulting value so the result can be reused  when that calculation
     /// is done multiple times.
-    fn add_calculation(&mut self, calculation: Calculation) -> ValueSource {
+    fn add_calculation(&mut self, calculation: Calculation<C::ScalarExt>) -> ValueSource {
         let existing_calculation = self
             .calculations
             .iter()
@@ -785,6 +789,9 @@ impl<C: CurveAffine> GraphEvaluator<C> {
                     self.add_calculation(Calculation::Mul(result_a, cst))
                 }
             }
+            Expression::Postprocess(f, c, _) => self.add_calculation(Calculation::Apply(**f,
+                ValueSource::Challenge(c.index()),
+            )),
         }
     }
 
@@ -879,6 +886,7 @@ pub fn evaluate<F: Field, B: Basis>(
                 &|a, b| a + &b,
                 &|a, b| a * b,
                 &|a, scalar| a * scalar,
+                &|f,c,_| f(challenges[c.index()]),
             );
         }
     });

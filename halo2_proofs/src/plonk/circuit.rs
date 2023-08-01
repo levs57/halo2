@@ -791,6 +791,7 @@ pub trait Circuit<F: Field> {
     fn synthesize(&self, config: Self::Config, layouter: impl Layouter<F>) -> Result<(), Error>;
 }
 
+
 /// Low-degree expression representing an identity that must hold over the committed columns.
 #[derive(Clone)]
 pub enum Expression<F> {
@@ -814,6 +815,8 @@ pub enum Expression<F> {
     Product(Box<Expression<F>>, Box<Expression<F>>),
     /// This is a scaled polynomial
     Scaled(Box<Expression<F>>, F),
+    /// This is a black-box postprocessing of public values; format - (blackbox function, challenge, name)
+    Postprocess(Box<fn(F)->F>, Box<Challenge>, Box<String>),
 }
 
 impl<F: Field> Expression<F> {
@@ -867,6 +870,7 @@ impl<F: Field> Expression<F> {
                 b.query_cells(cells);
             }
             Expression::Scaled(a, _) => a.query_cells(cells),
+            Expression::Postprocess(_, _, _) => (),
         };
     }
 
@@ -884,6 +888,7 @@ impl<F: Field> Expression<F> {
         sum: &impl Fn(T, T) -> T,
         product: &impl Fn(T, T) -> T,
         scaled: &impl Fn(T, F) -> T,
+        postprocess: &impl Fn(fn(F)->F, Challenge, &String)-> T,
     ) -> T {
         match self {
             Expression::Constant(scalar) => constant(*scalar),
@@ -904,6 +909,7 @@ impl<F: Field> Expression<F> {
                     sum,
                     product,
                     scaled,
+                    postprocess,
                 );
                 negated(a)
             }
@@ -919,6 +925,7 @@ impl<F: Field> Expression<F> {
                     sum,
                     product,
                     scaled,
+                    postprocess,
                 );
                 let b = b.evaluate(
                     constant,
@@ -931,6 +938,7 @@ impl<F: Field> Expression<F> {
                     sum,
                     product,
                     scaled,
+                    postprocess,
                 );
                 sum(a, b)
             }
@@ -946,6 +954,7 @@ impl<F: Field> Expression<F> {
                     sum,
                     product,
                     scaled,
+                    postprocess,
                 );
                 let b = b.evaluate(
                     constant,
@@ -958,6 +967,7 @@ impl<F: Field> Expression<F> {
                     sum,
                     product,
                     scaled,
+                    postprocess,
                 );
                 product(a, b)
             }
@@ -973,8 +983,13 @@ impl<F: Field> Expression<F> {
                     sum,
                     product,
                     scaled,
+                    postprocess,
                 );
                 scaled(a, *f)
+            }
+
+            Expression::Postprocess(f, c, n) => {
+                postprocess(**f, **c, n)
             }
         }
     }
@@ -994,6 +1009,7 @@ impl<F: Field> Expression<F> {
         product: &impl Fn(T, T) -> T,
         scaled: &impl Fn(T, F) -> T,
         zero: &T,
+        postprocess: &impl Fn(fn(F)->F, Challenge, &String)-> T,
     ) -> T {
         match self {
             Expression::Constant(scalar) => constant(*scalar),
@@ -1015,6 +1031,7 @@ impl<F: Field> Expression<F> {
                     product,
                     scaled,
                     zero,
+                    postprocess,
                 );
                 negated(a)
             }
@@ -1031,6 +1048,7 @@ impl<F: Field> Expression<F> {
                     product,
                     scaled,
                     zero,
+                    postprocess,
                 );
                 let b = b.evaluate_lazy(
                     constant,
@@ -1044,6 +1062,7 @@ impl<F: Field> Expression<F> {
                     product,
                     scaled,
                     zero,
+                    postprocess,
                 );
                 sum(a, b)
             }
@@ -1065,6 +1084,7 @@ impl<F: Field> Expression<F> {
                     product,
                     scaled,
                     zero,
+                    postprocess,
                 );
 
                 if a == *zero {
@@ -1082,6 +1102,7 @@ impl<F: Field> Expression<F> {
                         product,
                         scaled,
                         zero,
+                        postprocess,
                     );
                     product(a, b)
                 }
@@ -1099,8 +1120,12 @@ impl<F: Field> Expression<F> {
                     product,
                     scaled,
                     zero,
+                    postprocess,
                 );
                 scaled(a, *f)
+            }
+            Expression::Postprocess(f, c, n) => {
+                postprocess(**f, **c, n)
             }
         }
     }
@@ -1156,6 +1181,10 @@ impl<F: Field> Expression<F> {
                 a.write_identifier(writer)?;
                 write!(writer, "*{:?}", f)
             }
+            Expression::Postprocess(_, c, n) => {
+                let tmp : Vec<u8> = format!("PP {} : C{}", n, c.index()).into();
+                writer.write_all(&tmp)
+            }
         }
     }
 
@@ -1181,6 +1210,7 @@ impl<F: Field> Expression<F> {
             Expression::Sum(a, b) => max(a.degree(), b.degree()),
             Expression::Product(a, b) => a.degree() + b.degree(),
             Expression::Scaled(poly, _) => poly.degree(),
+            Expression::Postprocess(_, _, _) => 0,
         }
     }
 
@@ -1197,6 +1227,7 @@ impl<F: Field> Expression<F> {
             Expression::Sum(a, b) => a.complexity() + b.complexity() + 15,
             Expression::Product(a, b) => a.complexity() + b.complexity() + 30,
             Expression::Scaled(poly, _) => poly.complexity() + 30,
+            Expression::Postprocess(_, _, _)=>0,
         }
     }
 
@@ -1218,6 +1249,7 @@ impl<F: Field> Expression<F> {
             &|a, b| a || b,
             &|a, b| a || b,
             &|a, _| a,
+            &|_, _, _| false,
         )
     }
 
@@ -1246,6 +1278,7 @@ impl<F: Field> Expression<F> {
             &op,
             &op,
             &|a, _| a,
+            &|_, _, _| None,
         )
     }
 }
@@ -1301,7 +1334,10 @@ impl<F: std::fmt::Debug> std::fmt::Debug for Expression<F> {
             Expression::Product(a, b) => f.debug_tuple("Product").field(a).field(b).finish(),
             Expression::Scaled(poly, scalar) => {
                 f.debug_tuple("Scaled").field(poly).field(scalar).finish()
-            }
+            },
+            Expression::Postprocess(_, c, name) => {
+                f.debug_tuple("Postprocess").field(name).field(c).finish()
+            },
         }
     }
 }
@@ -2028,6 +2064,7 @@ impl<F: Field> ConstraintSystem<F> {
                 &|a, b| a + b,
                 &|a, b| a * b,
                 &|a, f| a * f,
+                &|f,v,n| Expression::Postprocess(Box::new(f), Box::new(v), Box::new((*n).clone())),
             );
         }
 

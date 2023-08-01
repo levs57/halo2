@@ -330,6 +330,7 @@ mod tests {
                         &|a, b| a + b,
                         &|a, b| a * b,
                         &|a, f| a * f,
+                        &|_,_,_| panic!("should not occur in returned expressions"),
                     );
 
                     if activation {
