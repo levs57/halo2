@@ -174,7 +174,7 @@ impl CircuitGates {
                                     format!("{} * {}", a, util::format_value(s))
                                 }
                             },
-                            &|_, c, n| format!("PP{}:C{}({})", n, c.index(), c.phase())
+                            &|_, c, n| format!("PP{}<{:?}>", n, c)
                         ),
                         queries: constraint.evaluate(
                             &|_| BTreeSet::default(),
@@ -217,7 +217,7 @@ impl CircuitGates {
                                 a
                             },
                             &|a, _| a,
-                            &|_, c, n| vec![format!("PP{}:C{}({})", n, c.index(), c.phase())].into_iter().collect(),
+                            &|_, c, n| vec![format!("PP<{}>{:?}", n, c)].into_iter().collect(), // CHECK IF IT IS OK??
                         ),
                     })
                     .collect(),

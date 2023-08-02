@@ -540,7 +540,7 @@ fn render_lookup<F: Field>(
             &|a, b| format! {"{} + {}", a,b},
             &|a, b| format! {"{} * {}", a,b},
             &|a, b| format! {"{} * {:?}", a, b},
-            &|_, c, n| format!("PP {} : C{}", n, c.index()),
+            &|_, c, n| format!("PP{}<{:?}>", n, c),
         )
     });
 
@@ -708,7 +708,7 @@ fn render_shuffle<F: Field>(
             &|a, b| format! {"{} + {}", a,b},
             &|a, b| format! {"{} * {}", a,b},
             &|a, b| format! {"{} * {:?}", a, b},
-            &|_,c,n| format!("PP {} : C{}", n, c.index()),
+            &|_,c,n| format!("PP{}<{:?}>", n, c),
         )
     });
 

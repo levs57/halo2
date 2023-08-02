@@ -125,7 +125,7 @@ pub enum Calculation<F: Field> {
     /// This is a simple assignment
     Store(ValueSource),
     /// Application of a generic black-box function
-    Apply(fn(F)->F, ValueSource),
+    Apply(fn(Vec<F>)->F, Box<Vec<ValueSource>>),
 
 }
 
@@ -178,7 +178,7 @@ impl<F: Field> Calculation<F> {
                 value
             }
             Calculation::Store(v) => get_value(v),
-            Calculation::Apply(f, v) => f(get_value(v)),
+            Calculation::Apply(f, v) => f(v.iter().map(|x|get_value(x)).collect()),
         }
     }
 }
@@ -789,9 +789,13 @@ impl<C: CurveAffine> GraphEvaluator<C> {
                     self.add_calculation(Calculation::Mul(result_a, cst))
                 }
             }
-            Expression::Postprocess(f, c, _) => self.add_calculation(Calculation::Apply(**f,
-                ValueSource::Challenge(c.index()),
-            )),
+            Expression::Postprocess(f, c, _) => {
+                let res : Vec<_> = (*c).iter().map(|x|{
+                    assert!(x.is_pub_value());
+                    self.add_expression(x)
+                }).collect();
+                self.add_calculation(Calculation::Apply(*f, Box::new(res)))
+            }
         }
     }
 
@@ -886,7 +890,7 @@ pub fn evaluate<F: Field, B: Basis>(
                 &|a, b| a + &b,
                 &|a, b| a * b,
                 &|a, scalar| a * scalar,
-                &|f,c,_| f(challenges[c.index()]),
+                &|f,c,_| f(c),
             );
         }
     });

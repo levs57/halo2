@@ -107,6 +107,20 @@ enum Value<F: Field> {
     Poison,
 }
 
+impl<F: Field> Value<F>{
+    fn apply(f: fn(Vec<F>)->F, c: Vec<Self>) -> Self{
+        let mut flag = false;
+        let c = c.iter().map(|x|{
+            match x {
+                Self::Poison => {flag = true; F::ZERO},
+                Self::Real(v) => *v,
+            }
+        }).collect();
+        if flag {return Self::Poison;}
+        Self::Real(f(c))
+    }
+}
+
 impl<F: Field> From<CellValue<F>> for Value<F> {
     fn from(value: CellValue<F>) -> Self {
         match value {
@@ -821,7 +835,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                                 &|a, b| a * b,
                                 &|a, scalar| a * scalar,
                                 &Value::Real(F::ZERO),
-                                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
+                                &|f,c,_| Value::apply(f, c),
                             ) {
                                 Value::Real(x) if x.is_zero_vartime() => None,
                                 Value::Real(_) => Some(VerifyFailure::ConstraintNotSatisfied {
@@ -896,7 +910,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                 &|a, b| a * b,
                 &|a, scalar| a * scalar,
                 &Value::Real(F::ZERO),
-                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
+                &|f,c,_| Value::apply(f,c),
             )
         };
 
@@ -1256,7 +1270,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                                 &|a, b| a * b,
                                 &|a, scalar| a * scalar,
                                 &Value::Real(F::ZERO),
-                                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
+                                &|f,c,_| Value::apply(f,c),
 
                             ) {
                                 Value::Real(x) if x.is_zero_vartime() => None,
@@ -1327,7 +1341,7 @@ impl<F: FromUniformBytes<64> + Ord> MockProver<F> {
                 &|a, b| a * b,
                 &|a, scalar| a * scalar,
                 &Value::Real(F::ZERO),
-                &|f,c,_| Value::Real(f(self.challenges[c.index()])),
+                &|f,c,_| Value::apply(f,c),
             )
         };
 

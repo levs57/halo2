@@ -816,10 +816,20 @@ pub enum Expression<F> {
     /// This is a scaled polynomial
     Scaled(Box<Expression<F>>, F),
     /// This is a black-box postprocessing of public values; format - (blackbox function, challenge, name)
-    Postprocess(Box<fn(F)->F>, Box<Challenge>, Box<String>),
+    Postprocess(fn(Vec<F>)->F, Box<Vec<Expression<F>>>, Box<String>),
 }
 
 impl<F: Field> Expression<F> {
+    /// Check if the value is deg 0 constant or not.
+    pub fn is_pub_value(&self) -> bool {
+        match self {
+            Self::Constant(_) => true,
+            Self::Challenge(_) => true,
+            Self::Postprocess(_,_,_) => true,
+            _ => false,
+        }
+    }
+
     /// Make side effects
     pub fn query_cells(&mut self, cells: &mut VirtualCells<'_, F>) {
         match self {
@@ -888,7 +898,7 @@ impl<F: Field> Expression<F> {
         sum: &impl Fn(T, T) -> T,
         product: &impl Fn(T, T) -> T,
         scaled: &impl Fn(T, F) -> T,
-        postprocess: &impl Fn(fn(F)->F, Challenge, &String)-> T,
+        postprocess: &impl Fn(fn(Vec<F>)->F, Vec<T>, &String)-> T,
     ) -> T {
         match self {
             Expression::Constant(scalar) => constant(*scalar),
@@ -989,7 +999,24 @@ impl<F: Field> Expression<F> {
             }
 
             Expression::Postprocess(f, c, n) => {
-                postprocess(**f, **c, n)
+
+                let c : Vec<_> = c.iter().map(|expr|{
+                    assert!(expr.is_pub_value());
+                    expr.evaluate(
+                        constant,
+                        selector_column,
+                        fixed_column,
+                        advice_column,
+                        instance_column,
+                        challenge,
+                        negated,
+                        sum,
+                        product,
+                        scaled,
+                        postprocess,
+                        )
+                    }).collect();
+                postprocess(*f, c, n)
             }
         }
     }
@@ -1009,7 +1036,7 @@ impl<F: Field> Expression<F> {
         product: &impl Fn(T, T) -> T,
         scaled: &impl Fn(T, F) -> T,
         zero: &T,
-        postprocess: &impl Fn(fn(F)->F, Challenge, &String)-> T,
+        postprocess: &impl Fn(fn(Vec<F>)->F, Vec<T>, &String)-> T,
     ) -> T {
         match self {
             Expression::Constant(scalar) => constant(*scalar),
@@ -1125,7 +1152,24 @@ impl<F: Field> Expression<F> {
                 scaled(a, *f)
             }
             Expression::Postprocess(f, c, n) => {
-                postprocess(**f, **c, n)
+
+                let c : Vec<_> = c.iter().map(|expr|{
+                    assert!(expr.is_pub_value());
+                    expr.evaluate(
+                        constant,
+                        selector_column,
+                        fixed_column,
+                        advice_column,
+                        instance_column,
+                        challenge,
+                        negated,
+                        sum,
+                        product,
+                        scaled,
+                        postprocess,
+                        )
+                    }).collect();
+                postprocess(*f, c, n)
             }
         }
     }
@@ -1182,8 +1226,10 @@ impl<F: Field> Expression<F> {
                 write!(writer, "*{:?}", f)
             }
             Expression::Postprocess(_, c, n) => {
-                let tmp : Vec<u8> = format!("PP {} : C{}", n, c.index()).into();
-                writer.write_all(&tmp)
+                writer.write_all(b"PP<")?;
+                write!(writer, "{}", n)?;
+                writer.write_all(b">")?;
+                write!(writer, "{:?}", c)
             }
         }
     }
@@ -2064,7 +2110,7 @@ impl<F: Field> ConstraintSystem<F> {
                 &|a, b| a + b,
                 &|a, b| a * b,
                 &|a, f| a * f,
-                &|f,v,n| Expression::Postprocess(Box::new(f), Box::new(v), Box::new((*n).clone())),
+                &|f,v,n| Expression::Postprocess(f, Box::new(v), Box::new((*n).clone())),
             );
         }
 
