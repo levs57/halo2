@@ -95,6 +95,28 @@ impl<V> Value<V> {
         }
     }
 
+    /// Applies function to the vector of values. Will return value::unknown if at least one of the values is unknown.
+    pub fn apply (c: Vec<Self>, f: fn(Vec<V>)->V) -> Self {
+        let mut flag = false;
+        let _ = c.iter().map(|x|{
+            let tmp = &x.inner;
+            match tmp {
+                None => {flag = true},
+                Some(_) => (),
+            }
+        }).count();
+
+        if flag {
+            return Value::unknown()
+        }
+        Value::known(f(c.into_iter().map(|x|{
+            match x.inner {
+                Some(v) => v,
+                None => panic!(),
+            }
+        }).collect()))
+    }
+
     /// Returns [`Value::unknown()`] if the value is [`Value::unknown()`], otherwise calls
     /// `f` with the wrapped value and returns the result.
     pub fn and_then<W, F: FnOnce(V) -> Value<W>>(self, f: F) -> Value<W> {
